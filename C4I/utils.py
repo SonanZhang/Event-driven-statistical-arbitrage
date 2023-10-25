@@ -38,6 +38,47 @@ def DailyPrice2MonthlyReturn(df):
 
     return dfM
 
+def DailyPrice2QuarterlyReturn(df):
+    '''
+    Convert daily prices dataset into quarterly return
+    INPUT:
+        df: daily dataset of stock prices to convert
+    OUTPUT:
+        dfM: quarterly dataset of stock returns obtained from df
+    '''
+    from numpy import min, max
+    from pandas import to_datetime, DataFrame
+
+    #----- Create the index of the quarterly dataset
+    #Compute the years range of df
+    index_year = df.index.year
+    y_min, y_max = min(index_year), max(index_year)
+    #Create the index of the quarterly dataset
+    quarters = list()
+    for year in range(y_min, y_max+1):
+        for quarter in range(4):
+            quarters.append( to_datetime(f'01/{quarter * 3 + 1}/{year}',dayfirst=True) )
+    #Adjust the index set by adding the last value (for temporal coherence)
+    q_end = max(df[index_year==y_max].index.month)
+    if q_end == 12:
+        quarters.append( to_datetime(f'01/01/{y_max+1}', dayfirst=True) )
+    else:
+        for _ in range(4, int(q_end/3), -1):
+            quarters.pop(-1)
+    q_start = min(df[index_year==y_min].index.month)
+    if q_start != 1:
+        for _ in range(0, int((q_start + 2) / 3), 1):
+            quarters.pop(0)
+    #Adjust the index set by removing the first empty observations
+
+    #----- Create the quarterly dataset
+    dfQ = DataFrame( index=quarters[1:], columns=df.columns )
+    #Compute the returns
+    for start, end in zip(quarters[:-1], quarters[1:]):
+        temp = df[ (df.index>=start) & (df.index<end) ]
+        dfQ.loc[end] = (temp.iloc[-1] - temp.iloc[0]) / temp.iloc[0]
+
+    return dfQ
 
 def DailyPrice2DailyReturn(df):
     '''
