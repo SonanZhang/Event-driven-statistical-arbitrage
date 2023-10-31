@@ -1,4 +1,4 @@
-from C4I.utils import l1_norm, PooledRegression, Var_Port, Expected_Sharpe, Return2Value
+from C4I.utils import l1_norm, PooledRegression, Var_Port, Expected_Sharpe, Return2Value, PooledEnsembleRegressions
 
 
 def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
@@ -48,7 +48,8 @@ def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
             YTrain = Y_local.reshape(-1,1)
         asset_res = []
         #Compute pooled regression and save coefficients and residuals
-        coeff = PooledRegression(YTrain, ClusterTrainSet, windows_number)
+        # coeff = PooledRegression(YTrain, ClusterTrainSet, windows_number)
+        coeff = PooledEnsembleRegressions(YTrain, ClusterTrainSet, windows_number)
         constraints.append( coeff[1:] ); alpha.append( coeff[0] )
         for t in range(len(YTrain)):
             temp = YTrain[t] - dot(ClusterTrainSet[t], coeff.T)
