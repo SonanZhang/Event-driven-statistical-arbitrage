@@ -3,7 +3,7 @@ from C4I.utils import l1_norm, PooledRegression, Var_Port, Expected_Sharpe, Retu
 
 def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
                             windows_number=10, scaler='Standard',
-                            opt_hyper={'maxiter':200, 'disp':True}):
+                            opt_hyper={'maxiter':200, 'disp':True}, Ensemble = False):
     '''
     Create optimal market-neutral within a give cluster
     INPUT:
@@ -19,6 +19,7 @@ def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
             'MinMax'. Other values will result in no scaling. Default='Standard'
         opt_hyper: dcit, hyperparameters for the minimizer, containing two keys:
             'maxiter' and 'disp'. Default={'maxiter':200, 'disp':True}
+        Ensemble : Boolean if use Ensemble regression approach
     OUTPUT:
         selected_portfolios: list, containing weights of the optimal portfolio
     '''
@@ -48,8 +49,10 @@ def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
             YTrain = Y_local.reshape(-1,1)
         asset_res = []
         #Compute pooled regression and save coefficients and residuals
-        # coeff = PooledRegression(YTrain, ClusterTrainSet, windows_number)
-        coeff = PooledEnsembleRegressions(YTrain, ClusterTrainSet, windows_number)
+        if Ensemble:
+            coeff = PooledEnsembleRegressions(YTrain, ClusterTrainSet, windows_number)
+        else:
+            coeff = PooledRegression(YTrain, ClusterTrainSet, windows_number)
         constraints.append( coeff[1:] ); alpha.append( coeff[0] )
         for t in range(len(YTrain)):
             temp = YTrain[t] - dot(ClusterTrainSet[t], coeff.T)
