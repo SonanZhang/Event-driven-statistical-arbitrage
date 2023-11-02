@@ -215,6 +215,7 @@ def InvestmnetWithEarningFilter(X_Test, target_portfolios, earning_by_tickers, p
     from pandas import DataFrame, Series
     from numpy import abs, array, dot, round, sum, zeros
     from C4I.investment import to_reduce_cluster
+    import pandas as pd
     #Define test series
 
    
