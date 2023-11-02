@@ -232,10 +232,9 @@ def PooledEnsembleRegressions(Y, X, n_windows):
     OUTPUT:
         params: list, final params of the regression
     '''
-    from numpy import array, mean
+    from numpy import array, mean, add
     from statsmodels.regression.linear_model import OLS
     from sklearn.svm import SVR
-    from sklearn.ensemble import GradientBoostingRegressor as GBR
 
     #Compute windows length
     length = len(Y)//n_windows
@@ -246,20 +245,14 @@ def PooledEnsembleRegressions(Y, X, n_windows):
         X_temp = X[t*length:(t+1)*length]
         OLS_mdl = OLS(Y_temp, X_temp).fit()
         SVR_mdl = SVR(kernel='linear').fit(X_temp, Y_temp.ravel())
-        constant = OLS_mdl.params[0]
-        first_order = (OLS_mdl.params[1] + SVR_mdl.coef_[0, 1]) / 2
-        second_order = (OLS_mdl.params[2] + SVR_mdl.coef_[0, 2]) / 2
-        mdl_params = array([constant, first_order, second_order])
+        mdl_params = add(SVR_mdl.coef_, OLS_mdl.params) / 2
         params.append(mdl_params)
     #Compute params in the last window
     Y_temp = Y[(n_windows-1)*length:]
     X_temp = X[(n_windows-1)*length:]
     OLS_mdl = OLS(Y_temp, X_temp).fit()
     SVR_mdl = SVR(kernel='linear').fit(X_temp, Y_temp.ravel())
-    constant = OLS_mdl.params[0]
-    first_order = (OLS_mdl.params[1] + SVR_mdl.coef_[0, 1]) / 2
-    second_order = (OLS_mdl.params[2] + SVR_mdl.coef_[0, 2]) / 2
-    mdl_params = array([constant, first_order, second_order])
+    mdl_params = add(SVR_mdl.coef_, OLS_mdl.params) / 2
     params.append(mdl_params)
     #Return mean values
     params = mean(params, axis=0)
