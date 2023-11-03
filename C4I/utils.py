@@ -256,4 +256,5 @@ def PooledEnsembleRegressions(Y, X, n_windows):
     params.append(mdl_params)
     #Return mean values
     params = mean(params, axis=0)
+    params = params.reshape(3,1)
     return params
