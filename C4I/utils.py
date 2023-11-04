@@ -256,4 +256,37 @@ def PooledEnsembleRegressions(Y, X, n_windows):
     params.append(mdl_params)
     #Return mean values
     params = mean(params, axis=0)
+    params = params.flatten()
+    return params
+
+def PooledSVRRegressions(Y, X, n_windows):
+    '''
+    Pooled Ensemble Regression
+    INPUT:
+        Y: array, target values
+        X: array, features matrix
+        n_windows: int, number of windows
+    OUTPUT:
+        params: list, final params of the regression
+    '''
+    from numpy import array, mean, add
+    from sklearn.svm import SVR
+
+    #Compute windows length
+    length = len(Y)//n_windows
+    #Compute params in the other windows
+    params = list()
+    for t in range(n_windows-1):
+        Y_temp = Y[t*length:(t+1)*length]
+        X_temp = X[t*length:(t+1)*length]
+        SVR_mdl = SVR(kernel='linear').fit(X_temp, Y_temp.ravel())
+        params.append(SVR_mdl.coef_)
+    #Compute params in the last window
+    Y_temp = Y[(n_windows-1)*length:]
+    X_temp = X[(n_windows-1)*length:]
+    SVR_mdl = SVR(kernel='linear').fit(X_temp, Y_temp.ravel())
+    params.append(SVR_mdl.coef_)
+    #Return mean values
+    params = mean(params, axis=0)
+    params = params.flatten()
     return params
