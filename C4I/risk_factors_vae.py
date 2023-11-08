@@ -25,7 +25,7 @@ import keras
 
 
 
-def CreateRiskFactors(data, n_pcs, threshold=0.5, SEED=1):
+def CreateRiskFactors(dfs, n_pcs, gran_names=None, threshold=0.5, SEED=1):
     '''
     From datasets extract the risk factors using VAE.
     INPUT:
@@ -46,54 +46,55 @@ def CreateRiskFactors(data, n_pcs, threshold=0.5, SEED=1):
 
     #----- Compute Encoded Representations using Autoencoders (NNPCA)
     Encoded = list()
-    input_dim = data.shape[1]
+    for df, name in zip(dfs, gran_names):
+        input_dim = df.shape[1]
 
-    
-    epochs = 50
-    epsilon_std = 1
 
-    # Encoder
-    inputs = Input(shape=(input_dim,))
-    h = Dense(64, activation='relu')(inputs)
-    z_mean = Dense(10)(h)
-    z_log_var = Dense(10)(h)
+        epochs = 50
+        epsilon_std = 1
 
-    # Sampling from the distribution
-    def sampling(args):
-        z_mean, z_log_var = args
-        batch = K.shape(z_mean)[0]
-        dim = K.int_shape(z_mean)[1]
-        epsilon = K.random_normal(shape=(batch, dim), mean=0., stddev=epsilon_std)
-        return z_mean + K.exp(0.5 * z_log_var) * epsilon
+        # Encoder
+        inputs = Input(shape=(input_dim,))
+        h = Dense(64, activation='relu')(inputs)
+        z_mean = Dense(n_pcs)(h)
+        z_log_var = Dense(n_pcs)(h)
 
-    z = Lambda(sampling, output_shape=(10,))([z_mean, z_log_var])
+        # Sampling from the distribution
+        def sampling(args):
+            z_mean, z_log_var = args
+            batch = K.shape(z_mean)[0]
+            dim = K.int_shape(z_mean)[1]
+            epsilon = K.random_normal(shape=(batch, dim), mean=0., stddev=epsilon_std)
+            return z_mean + K.exp(0.5 * z_log_var) * epsilon
 
-    # Decoder
-    decoder_h = Dense(64, activation='relu')
-    decoder_mean = Dense(input_dim, activation='linear')
-    h_decoded = decoder_h(z)
-    x_decoded_mean = decoder_mean(h_decoded)
+        z = Lambda(sampling, output_shape=(n_pcs,))([z_mean, z_log_var])
 
-    # VAE model
-    vae = Model(inputs, x_decoded_mean)
+        # Decoder
+        decoder_h = Dense(64, activation='relu')
+        decoder_mean = Dense(input_dim, activation='linear')
+        h_decoded = decoder_h(z)
+        x_decoded_mean = decoder_mean(h_decoded)
 
-    # Loss
-    reconstruction_loss = mse(inputs, x_decoded_mean)
-    reconstruction_loss *= input_dim
-    kl_loss = - 0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
-    vae_loss = K.mean(reconstruction_loss + kl_loss)
+        # VAE model
+        vae = Model(inputs, x_decoded_mean)
 
-    vae.add_loss(vae_loss)
-    vae.compile(optimizer='rmsprop')
-    
+        # Loss
+        reconstruction_loss = mse(inputs, x_decoded_mean)
+        reconstruction_loss *= input_dim
+        kl_loss = - 0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
+        vae_loss = K.mean(reconstruction_loss + kl_loss)
 
-    vae.fit(data.values, epochs=epochs)
-    encoder = Model(inputs, z_mean)
-    encoded_data = encoder.predict(data.values)
+        vae.add_loss(vae_loss)
+        vae.compile(optimizer='rmsprop')
 
-    Encoded.append(DataFrame(encoded_data,
-                     index=data.index,
-                     columns=[f'{k}th' for k in range(1, n_pcs+1)]))
+
+        vae.fit(df.values, epochs=epochs)
+        encoder = Model(inputs, z_mean)
+        encoded_data = encoder.predict(dfs[0].values)
+
+        Encoded.append(DataFrame(encoded_data,
+                     index=dfs[0].index,
+                     columns=[f'{name}_{k}th' for k in range(1, n_pcs+1)]))
 
     #----- Apply multicollinearity filter to obtain the final Risk Factors
     RFs = Encoded[0]

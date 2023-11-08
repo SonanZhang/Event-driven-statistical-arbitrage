@@ -19,7 +19,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.losses import mse
 import keras
 
-def CreateRiskFactors(data, n_pcs, gran_names=None, threshold=0.5, SEED=1):
+def CreateRiskFactors(dfs, n_pcs, gran_names=None, threshold=0.5, SEED=1):
     from numpy import corrcoef
     from pandas import DataFrame
     import tensorflow as tf
@@ -28,33 +28,34 @@ def CreateRiskFactors(data, n_pcs, gran_names=None, threshold=0.5, SEED=1):
     
     #----- Compute Encoded Representations using Autoencoders (NNPCA)
     Encoded = list()
-    
-    input_dim = data.shape[1]
-    
-    input_layer = Input(shape=(input_dim,))
-    encoded_1 = Dense(1024, activation='tanh', activity_regularizer=regularizers.l1(10**(-5)))(input_layer)
-    encoded_1 = Dropout(0.3)(encoded_1)
-    encoded_2 = Dense(512, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(encoded_1)
-    encoded_2 = Dropout(0.3)(encoded_2)
-    encoded_final = Dense(n_pcs, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(encoded_2)
+    for df, name in zip(dfs, gran_names):
 
-    decoded_1 = Dense(512, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(encoded_final)
-    decoded_1 = Dropout(0.3)(decoded_1)
-    decoded_2 = Dense(1024, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(decoded_1)
-    decoded_2 = Dropout(0.3)(decoded_2)
-    decoded_final = Dense(input_dim, activation='tanh', activity_regularizer=regularizers.l1(10**(-5)))(decoded_2)
+        input_dim = df.shape[1]
 
-    autoencoder = Model(input_layer, decoded_final)
-    encoder = Model(input_layer, encoded_final)
-    
-    early_stopping = EarlyStopping(monitor='loss', patience=5, restore_best_weights=True)
-    autoencoder.compile(optimizer='adam', loss='mean_squared_error')
-    autoencoder.fit(data.values, data.values, epochs=150, batch_size=32, shuffle=True, callbacks=[early_stopping], verbose=0)
+        input_layer = Input(shape=(input_dim,))
+        encoded_1 = Dense(1024, activation='tanh', activity_regularizer=regularizers.l1(10**(-5)))(input_layer)
+        encoded_1 = Dropout(0.3)(encoded_1)
+        encoded_2 = Dense(512, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(encoded_1)
+        encoded_2 = Dropout(0.3)(encoded_2)
+        encoded_final = Dense(n_pcs, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(encoded_2)
 
-    encoded_data = encoder.predict(data.values)
-    Encoded.append(DataFrame(encoded_data,
-                             index=data.index,
-                             columns=[f'{k}th' for k in range(1, n_pcs+1)]))
+        decoded_1 = Dense(512, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(encoded_final)
+        decoded_1 = Dropout(0.3)(decoded_1)
+        decoded_2 = Dense(1024, activation='relu', activity_regularizer=regularizers.l1(10**(-5)))(decoded_1)
+        decoded_2 = Dropout(0.3)(decoded_2)
+        decoded_final = Dense(input_dim, activation='tanh', activity_regularizer=regularizers.l1(10**(-5)))(decoded_2)
+
+        autoencoder = Model(input_layer, decoded_final)
+        encoder = Model(input_layer, encoded_final)
+
+        early_stopping = EarlyStopping(monitor='loss', patience=5, restore_best_weights=True)
+        autoencoder.compile(optimizer='adam', loss='mean_squared_error')
+        autoencoder.fit(df.values, df.values, epochs=150, batch_size=32, shuffle=True, callbacks=[early_stopping], verbose=0)
+
+        encoded_data = encoder.predict(dfs[0].values)
+        Encoded.append(DataFrame(encoded_data,
+                                 index=dfs[0].index,
+                                 columns=[f'{name}_{k}th' for k in range(1, n_pcs+1)]))
 
     #----- Apply multicollinearity filter to obtain the final Risk Factors
     RFs = Encoded[0]
