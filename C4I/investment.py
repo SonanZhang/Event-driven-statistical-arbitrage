@@ -19,7 +19,6 @@ def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
             'MinMax'. Other values will result in no scaling. Default='Standard'
         opt_hyper: dcit, hyperparameters for the minimizer, containing two keys:
             'maxiter' and 'disp'. Default={'maxiter':200, 'disp':True}
-        Ensemble : Boolean if use Ensemble regression approach
     OUTPUT:
         selected_portfolios: list, containing weights of the optimal portfolio
     '''
@@ -49,6 +48,7 @@ def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
             YTrain = Y_local.reshape(-1,1)
         asset_res = []
         #Compute pooled regression and save coefficients and residuals
+        # coeff = PooledRegression(YTrain, ClusterTrainSet, windows_number)
         if Ensemble:
             coeff = PooledEnsembleRegressions(YTrain, ClusterTrainSet, windows_number)
         else:
@@ -160,6 +160,87 @@ def Investment(X_Test, target_portfolios, n_round=3, initial_capital=1000):
             weights = round( weights, n_round )
         for n_col, col in enumerate(port[0]):
             port_test += X_Test[col] * weights[n_col]
+    #From returns to values
+    port_test = Series(Return2Value(port_test, initial_capital),
+                          index=X_Test.index, name='Portfolio')
+    return port_test
+
+
+
+def to_reduce_cluster(X_Test, clusters, reduce, earnings_by_tickers, pre_period_by_ticker, post_period_by_ticker):
+    from pandas import DataFrame, Series
+    from numpy import abs, array, dot, round, sum, zeros
+    import pandas as pd
+    import numpy as np 
+
+    earning_weight_df = pd.DataFrame()
+    earning_weight_df.index = X_Test.index
+    cluster_weight_list = [1] * len(X_Test.index)
+    earning_weight_df['weight'] = cluster_weight_list
+
+    for i in range(len(clusters)):
+        ticker = clusters[i]
+        earning_dates = earnings_by_tickers[ticker]
+        if (ticker not in pre_period_by_ticker.keys()):
+            continue
+        if (ticker not in post_period_by_ticker.keys()):
+            continue 
+        before_earnings_period = pre_period_by_ticker[ticker]
+        after_earning_period = post_period_by_ticker[ticker]
+
+        for date in earning_weight_df.index:
+            normal_flag = True
+            for earning_date_str in earning_dates:
+                earning_date = pd.to_datetime(earning_date_str)
+                diff_days = np.busday_count(date.strftime(format="%Y-%m-%d"), earning_date.strftime(format="%Y-%m-%d"))
+                if diff_days >= 0 and diff_days < before_earnings_period:
+                    normal_flag = False
+                elif diff_days < 0 and diff_days > -after_earning_period:
+                    normal_flag = False    
+            if  not normal_flag:
+                earning_weight_df.loc[date, 'weight'] = reduce
+    return earning_weight_df
+
+def InvestmnetWithEarningFilter(X_Test, target_portfolios, earning_by_tickers, pre_period_by_ticker, post_period_by_ticker, reduce_earning = 0.5, n_round=3, initial_capital=1000, earning_optimized=True):
+    '''
+    Compute the investment value during the test period and Filter with earning period filter
+    INPUT:
+        X_Test: DataFrame, asset returns in the test set
+        target_portfolios: list, portfolios assets and weights
+        n_round: int, number of decimals considered (if <=0, no round).Default=3
+        initial_capital: int, initial value of the portfolio. Default=1000
+    OUTPUT:
+        port_test: series, values of the portfolio in the test set
+    '''
+    from pandas import DataFrame, Series
+    from numpy import abs, array, dot, round, sum, zeros
+    from C4I.investment import to_reduce_cluster
+    import pandas as pd
+    #Define test series
+
+   
+    port_test = zeros( len(X_Test.index) )
+    #Add, portfolio by portfolio, the returns in the test set
+    for port in target_portfolios:
+        if earning_optimized:
+            earning_weight_df = to_reduce_cluster(X_Test, port[0], reduce_earning, earning_by_tickers, pre_period_by_ticker, post_period_by_ticker)
+        else:
+            earning_weight_df = pd.DataFrame()
+        weights = port[1]/len(target_portfolios)
+       
+        #Check if weights have to be rounded
+        if n_round > 0:
+            weights = round( weights, n_round )
+        
+        if earning_optimized:
+            for n_col, col in enumerate(port[0]):
+                port_test += (X_Test[col] * earning_weight_df['weight']) * weights[n_col]
+        else:
+            for n_col, col in enumerate(port[0]):
+                port_test += X_Test[col] * weights[n_col]
+
+        #Reduce weight around earnings
+        
     #From returns to values
     port_test = Series(Return2Value(port_test, initial_capital),
                           index=X_Test.index, name='Portfolio')
