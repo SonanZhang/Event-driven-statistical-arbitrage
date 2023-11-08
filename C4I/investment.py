@@ -1,4 +1,4 @@
-from C4I.utils import l1_norm, PooledRegression, Var_Port, Expected_Sharpe, Return2Value, PooledEnsembleRegressions
+from C4I.utils import l1_norm, PooledRegression, Return2Value, PooledEnsembleRegressions, PooledSVRRegressions
 
 
 def MarketNeutral_Portfolio(XD, XTrain, cluster, target_function,
